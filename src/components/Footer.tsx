@@ -1,50 +1,96 @@
 import React from 'react';
-import cn from 'classnames';
+import classNames from 'classnames';
+import { ErrorType, Filter } from '../App';
+import { Todo } from '../types/Todo';
+import { deleteTodo } from '../api/todos';
 
-import { Filter, FILTER_LINKS } from '../types/Filter';
+type Props = {
+  activeTodos: number;
+  selectedFilter: string;
+  setSelectedFilter: React.Dispatch<React.SetStateAction<Filter>>;
+  completedTodos: number;
+  todos: Todo[];
+  setTodos: React.Dispatch<React.SetStateAction<Todo[]>>;
+  setCurrentError: React.Dispatch<React.SetStateAction<ErrorType | ''>>;
+  setIsLoading: React.Dispatch<React.SetStateAction<boolean>>;
+  setIsDeleteAllPressed: React.Dispatch<React.SetStateAction<boolean>>;
+};
 
-interface TodoFooterProps {
-  setFilterBy: React.Dispatch<React.SetStateAction<Filter>>;
-  filterBy: Filter;
-  activeTodosCount: number;
-}
+export const Footer: React.FC<Props> = ({
+  selectedFilter,
+  activeTodos,
+  setSelectedFilter,
+  completedTodos,
+  todos,
+  setTodos,
+  setCurrentError,
+  setIsLoading,
+  setIsDeleteAllPressed,
+}) => {
+  const handleDeleteAllCompleted = () => {
+    const todos1 = todos.filter(todo => todo.completed);
 
-export const TodoFooter: React.FC<TodoFooterProps> = React.memo(
-  ({ setFilterBy, filterBy, activeTodosCount }) => {
-    return (
-      <footer className="todoapp__footer" data-cy="Footer">
-        <span className="todo-count" data-cy="TodosCounter">
-          {activeTodosCount} items left
-        </span>
+    setIsDeleteAllPressed(true);
+    setIsLoading(true);
 
-        {/* Active link should have the 'selected' class */}
-        <nav className="filter" data-cy="Filter">
-          {FILTER_LINKS.map(filterLink => (
+    Promise.allSettled(todos1.map(todo => deleteTodo(todo.id.toString())))
+      .then(results => {
+        const successfulIds: number[] = [];
+        let hasErrors = false;
+
+        results.forEach((result, index) => {
+          if (result.status === 'fulfilled') {
+            successfulIds.push(todos1[index].id);
+          } else {
+            hasErrors = true;
+          }
+        });
+
+        setTodos(prev => prev.filter(todo => !successfulIds.includes(todo.id)));
+
+        if (hasErrors) {
+          setCurrentError(ErrorType.UnableToDeleteTodo);
+        }
+      })
+      .finally(() => {
+        setIsLoading(false);
+        setIsDeleteAllPressed(false);
+      });
+  };
+
+  return (
+    <footer className="todoapp__footer" data-cy="Footer">
+      <span className="todo-count" data-cy="TodosCounter">
+        {activeTodos} items left
+      </span>
+
+      <nav className="filter" data-cy="Filter">
+        {Object.values(Filter).map((filter: Filter, index) => {
+          return (
             <a
-              key={filterLink}
-              href={`#/${filterLink.toLowerCase()}`}
-              className={cn('filter__link', {
-                selected: filterLink === filterBy,
+              href={`#/${filter}`}
+              key={index}
+              className={classNames('filter__link', {
+                selected: selectedFilter === filter,
               })}
-              data-cy={`FilterLink${filterLink}`}
-              onClick={() => setFilterBy(filterLink)}
+              data-cy={`FilterLink${filter}`}
+              onClick={() => setSelectedFilter(filter)}
             >
-              {filterLink}
+              {filter}
             </a>
-          ))}
-        </nav>
+          );
+        })}
+      </nav>
 
-        {/* this button should be disabled if there are no completed todos */}
-        <button
-          type="button"
-          className="todoapp__clear-completed"
-          data-cy="ClearCompletedButton"
-        >
-          Clear completed
-        </button>
-      </footer>
-    );
-  },
-);
-
-TodoFooter.displayName = 'TodoFooter';
+      <button
+        type="button"
+        className="todoapp__clear-completed"
+        data-cy="ClearCompletedButton"
+        onClick={() => handleDeleteAllCompleted()}
+        disabled={completedTodos === 0}
+      >
+        Clear completed
+      </button>
+    </footer>
+  );
+};

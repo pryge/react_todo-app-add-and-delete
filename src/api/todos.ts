@@ -3,14 +3,18 @@ import { client } from '../utils/fetchClient';
 
 export const USER_ID = 2619;
 
-export const getTodos = async () => {
-  await new Promise(resolve => setTimeout(resolve, 300));
-
+export const getTodos = () => {
   return client.get<Todo[]>(`/todos?userId=${USER_ID}`);
 };
 
-export const createTodo = (data: Omit<Todo, 'id'>) => {
-  return client.post<Todo>('/todos', data);
+export const deleteTodo = (todoId: string) => {
+  return client.delete(`/todos/${todoId}`);
 };
 
-// Add more methods here
+export const addTodo = (title: string) => {
+  return client.post<Todo>(`/todos`, {
+    title: title,
+    userId: USER_ID,
+    completed: false,
+  });
+};

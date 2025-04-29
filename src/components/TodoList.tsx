@@ -1,34 +1,105 @@
 import React from 'react';
-import { TodoItem } from './TodoItem';
 import { Todo } from '../types/Todo';
+import { ErrorType, Filter } from '../App';
+import { deleteTodo } from '../api/todos';
+import { CSSTransition, TransitionGroup } from 'react-transition-group';
+import { TodoItem } from './TodoItem';
 
-type TodoListProps = {
-  todos: Todo[];
-  setTodos: React.Dispatch<React.SetStateAction<Todo[]>>; // Додано для оновлення стану
+type Props = {
+  visibleTodos: Todo[];
+  isTodoEditing: boolean;
+  selectedPostId: number;
+  setIsTodoEditing: React.Dispatch<React.SetStateAction<boolean>>;
+  setSelectedPostId: React.Dispatch<React.SetStateAction<number>>;
+  selectedFilter: Filter;
+  tempTodo: null | Todo;
+  setTodos: React.Dispatch<React.SetStateAction<Todo[]>>;
+  setCurrentError: React.Dispatch<React.SetStateAction<ErrorType | ''>>;
+  isLoading: boolean;
+  setIsLoading: React.Dispatch<React.SetStateAction<boolean>>;
+  isDeleteAllPressed: boolean;
 };
 
-export const TodoList: React.FC<TodoListProps> = React.memo(
-  ({ todos, setTodos }) => {
-    const handleToggle = (id: number) => {
-      setTodos(prevTodos =>
-        prevTodos.map(todo =>
-          todo.id === id ? { ...todo, completed: !todo.completed } : todo,
-        ),
-      );
-    };
+export const TodoList: React.FC<Props> = ({
+  visibleTodos,
+  isTodoEditing,
+  selectedPostId,
+  setIsTodoEditing,
+  setSelectedPostId,
+  selectedFilter,
+  tempTodo,
+  setTodos,
+  setCurrentError,
+  isLoading,
+  setIsLoading,
+  isDeleteAllPressed,
+}) => {
+  let todosCopy: Todo[];
 
-    return (
-      <section className="todoapp__main" data-cy="TodoList">
-        {todos.map(todo => (
-          <TodoItem
-            key={todo.id}
-            todo={todo}
-            onToggle={handleToggle} // Передаємо handleToggle в TodoItem
-          />
+  switch (selectedFilter) {
+    case Filter.all:
+      todosCopy = [...visibleTodos];
+      break;
+
+    case Filter.active:
+      todosCopy = [...visibleTodos].filter(todo => !todo.completed);
+      break;
+
+    case Filter.completed:
+      todosCopy = [...visibleTodos].filter(todo => todo.completed);
+      break;
+
+    default:
+      todosCopy = [...visibleTodos];
+  }
+
+  const handleTodoDelete = (todoId: number) => {
+    setIsLoading(true);
+
+    deleteTodo(todoId.toString())
+      .then(() => {
+        setTodos(visibleTodos.filter(todo => todo.id !== todoId));
+      })
+      .catch(() => {
+        setCurrentError(ErrorType.UnableToDeleteTodo);
+      })
+      .finally(() => {
+        setIsLoading(false);
+      });
+  };
+
+  return (
+    <section className="todoapp__main" data-cy="TodoList">
+      <TransitionGroup>
+        {todosCopy.map((todo: Todo) => (
+          <CSSTransition timeout={300} key={todo.id} classNames="item">
+            <TodoItem
+              todo={todo}
+              key={todo.id}
+              isTodoEditing={isTodoEditing}
+              selectedPostId={selectedPostId}
+              setIsTodoEditing={setIsTodoEditing}
+              setSelectedPostId={setSelectedPostId}
+              handleTodoDelete={handleTodoDelete}
+              isLoading={isLoading}
+              isDeleteAllPressed={isDeleteAllPressed}
+            />
+          </CSSTransition>
         ))}
-      </section>
-    );
-  },
-);
 
-TodoList.displayName = 'TodoList';
+        {tempTodo !== null && (
+          <CSSTransition timeout={300} key={0} classNames="temp-item">
+            <TodoItem
+              todo={tempTodo}
+              setIsTodoEditing={setIsTodoEditing}
+              setSelectedPostId={setSelectedPostId}
+              handleTodoDelete={handleTodoDelete}
+              isLoading={isLoading}
+              isDeleteAllPressed={isDeleteAllPressed}
+            />
+          </CSSTransition>
+        )}
+      </TransitionGroup>
+    </section>
+  );
+};

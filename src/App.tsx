@@ -1,131 +1,111 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import cn from 'classnames';
-
-import { Todo } from './types/Todo';
+/* eslint-disable jsx-a11y/label-has-associated-control */
+/* eslint-disable jsx-a11y/control-has-associated-label */
+import React, { useEffect, useState } from 'react';
 import { getTodos } from './api/todos';
-import { TodoHeader } from './components/Header';
+import { Todo } from './types/Todo';
+import { Header } from './components/Header';
 import { TodoList } from './components/TodoList';
-import { TodoFooter } from './components/Footer';
-import { Filter } from './types/Filter';
-import { createTodo } from './api/todos';
+import { Footer } from './components/Footer';
+import { ErrorNotification } from './components/ErrorNotification';
+
+export enum ErrorType {
+  TodosLoad = 'Unable to load todos',
+  EmptyTitle = 'Title should not be empty',
+  UnableToAddTodo = 'Unable to add a todo',
+  UnableToDeleteTodo = 'Unable to delete a todo',
+  UnableToUpdateTodo = 'Unable to update a todo',
+}
+
+export enum Filter {
+  all = 'All',
+  active = 'Active',
+  completed = 'Completed',
+}
 
 export const App: React.FC = () => {
+  const [isTodoEditing, setIsTodoEditing] = useState(false);
+  const [selectedPostId, setSelectedPostId] = useState(0);
+  const [currentError, setCurrentError] = useState<ErrorType | ''>('');
+  const [selectedFilter, setSelectedFilter] = useState(Filter.all);
   const [todos, setTodos] = useState<Todo[]>([]);
-  const [error, setError] = useState('');
-  const [filterBy, setFilterBy] = useState<Filter>(Filter.All);
-  const [newTodoTitle, setNewTodoTitle] = useState('');
-  const [isAdding, setIsAdding] = useState(false);
+  const [tempTodo, setTempTodo] = useState<Todo | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isDeleteAllPressed, setIsDeleteAllPressed] = useState(false);
 
   useEffect(() => {
     getTodos()
       .then(setTodos)
       .catch(() => {
-        setError('Unable to load todos');
+        setCurrentError(ErrorType.TodosLoad);
       });
   }, []);
 
   useEffect(() => {
-    if (!error) {
+    if (!currentError) {
       return;
     }
 
     const timer = setTimeout(() => {
-      setError('');
+      setCurrentError('');
     }, 3000);
 
     return () => clearTimeout(timer);
-  }, [error]);
+  }, [currentError]);
 
-  const activeTodosCount = useMemo(
-    () => todos.reduce((sum, todo) => (!todo.completed ? sum + 1 : sum), 0),
-    [todos],
-  );
+  const activeTodos: number = [...todos].filter(
+    (todo: Todo) => !todo.completed,
+  ).length;
 
-  const handleAdd = async () => {
-    if (newTodoTitle.trim() === '') {
-      setError('Title should not be empty');
-
-      return;
-    }
-
-    const trimmedTitle = newTodoTitle.trim();
-
-    setIsAdding(true);
-
-    try {
-      const newTodoFromServer = await createTodo({
-        title: trimmedTitle,
-        userId: 2619,
-        completed: false,
-      });
-
-      setTodos(currentTodos => [...currentTodos, newTodoFromServer]);
-      setNewTodoTitle('');
-    } catch (err) {
-      setError('Unable to add todo');
-    } finally {
-      setIsAdding(false);
-    }
-  };
-
-  const filteredTodos = useMemo(() => {
-    return todos.filter(todo => {
-      switch (filterBy) {
-        case Filter.Active:
-          return !todo.completed;
-
-        case Filter.Completed:
-          return todo.completed;
-
-        default:
-          return true;
-      }
-    });
-  }, [todos, filterBy]);
+  const completedTodos: number = [...todos].filter(
+    (todo: Todo) => todo.completed,
+  ).length;
 
   return (
     <div className="todoapp">
       <h1 className="todoapp__title">todos</h1>
 
       <div className="todoapp__content">
-        <TodoHeader
-          newTodoTitle={newTodoTitle}
-          setNewTodoTitle={setNewTodoTitle}
-          isAdding={isAdding}
-          onAdd={handleAdd}
+        <Header
+          todos={todos}
+          completedTodos={completedTodos}
+          setTodos={setTodos}
+          setCurrentError={setCurrentError}
+          setTempTodo={setTempTodo}
+          isLoading={isLoading}
+          setIsLoading={setIsLoading}
         />
-
-        {todos.length !== 0 && (
-          <TodoList todos={filteredTodos} setTodos={setTodos} />
-        )}
-
-        {todos.length !== 0 && (
-          <TodoFooter
-            setFilterBy={setFilterBy}
-            filterBy={filterBy}
-            activeTodosCount={activeTodosCount}
+        <TodoList
+          selectedFilter={selectedFilter}
+          visibleTodos={todos}
+          isTodoEditing={isTodoEditing}
+          selectedPostId={selectedPostId}
+          setIsTodoEditing={setIsTodoEditing}
+          setSelectedPostId={setSelectedPostId}
+          tempTodo={tempTodo}
+          setTodos={setTodos}
+          setCurrentError={setCurrentError}
+          isLoading={isLoading}
+          setIsLoading={setIsLoading}
+          isDeleteAllPressed={isDeleteAllPressed}
+        />
+        {!!todos.length && (
+          <Footer
+            activeTodos={activeTodos}
+            selectedFilter={selectedFilter}
+            setSelectedFilter={setSelectedFilter}
+            completedTodos={completedTodos}
+            todos={todos}
+            setTodos={setTodos}
+            setCurrentError={setCurrentError}
+            setIsLoading={setIsLoading}
+            setIsDeleteAllPressed={setIsDeleteAllPressed}
           />
         )}
       </div>
-
-      {/* Error notification */}
-      <div
-        data-cy="ErrorNotification"
-        className={cn(
-          'notification is-danger is-light has-text-weight-normal',
-          {
-            hidden: !error,
-          },
-        )}
-      >
-        <button
-          data-cy="HideErrorButton"
-          type="button"
-          className="delete"
-          onClick={() => setError('')}
-        />
-        {error}
-      </div>
+      <ErrorNotification
+        currentError={currentError}
+        setCurrentError={setCurrentError}
+      />
     </div>
   );
 };

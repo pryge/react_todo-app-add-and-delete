@@ -1,45 +1,84 @@
-import React from 'react';
+import React, { useState } from 'react';
+import classNames from 'classnames';
+import { Todo } from '../types/Todo';
+import { addTodo } from '../api/todos';
+import { ErrorType } from '../App';
 
-type TodoHeaderProps = {
-  newTodoTitle: string;
-  setNewTodoTitle: React.Dispatch<React.SetStateAction<string>>;
-  isAdding: boolean; // змінив назву на більш зрозумілу
-  onAdd: () => void;
+type Props = {
+  todos: Todo[];
+  completedTodos: number;
+  setTodos: React.Dispatch<React.SetStateAction<Todo[]>>;
+  setCurrentError: React.Dispatch<React.SetStateAction<ErrorType | ''>>;
+  setTempTodo: React.Dispatch<React.SetStateAction<Todo | null>>;
+  isLoading: boolean;
+  setIsLoading: React.Dispatch<React.SetStateAction<boolean>>;
 };
 
-export const TodoHeader: React.FC<TodoHeaderProps> = ({
-  newTodoTitle,
-  setNewTodoTitle,
-  isAdding, // змінив з handleAdd на isAdding
-  onAdd,
+export const Header: React.FC<Props> = ({
+  todos,
+  completedTodos,
+  setTodos,
+  setCurrentError,
+  setTempTodo,
+  isLoading,
+  setIsLoading,
 }) => {
-  const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+  const [todoTitle, setTodoTitle] = useState('');
+
+  const handleTodoAdd = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (newTodoTitle.trim()) {
-      onAdd();
+
+    const trimmedTitle = todoTitle.trim();
+
+    if (!trimmedTitle) {
+      setCurrentError(ErrorType.EmptyTitle);
+
+      return;
     }
+
+    setIsLoading(true);
+    setTempTodo({ id: 0, title: todoTitle, completed: false, userId: 0 });
+
+    addTodo(trimmedTitle)
+      .then(newTodo => {
+        setTodos(prev => [...prev, newTodo]);
+        setTodoTitle('');
+      })
+      .catch(() => {
+        setCurrentError(ErrorType.UnableToAddTodo);
+      })
+      .finally(() => {
+        setIsLoading(false);
+        setTempTodo(null);
+      });
+
+    return;
   };
 
   return (
     <header className="todoapp__header">
       {/* this button should have `active` class only if all todos are completed */}
-      <button
-        type="button"
-        className="todoapp__toggle-all active"
-        data-cy="ToggleAllButton"
-      />
+      {todos.length > 0 && (
+        <button
+          type="button"
+          className={classNames('todoapp__toggle-all', {
+            active: todos.length === completedTodos,
+          })}
+          data-cy="ToggleAllButton"
+        />
+      )}
 
-      {/* Add a todo on form submit */}
-      <form onSubmit={handleSubmit}>
+      <form onSubmit={handleTodoAdd}>
         <input
+          key={isLoading ? 'loading' : 'ready'}
           data-cy="NewTodoField"
           type="text"
           className="todoapp__new-todo"
           placeholder="What needs to be done?"
-          value={newTodoTitle}
-          onChange={e => setNewTodoTitle(e.target.value)}
-          disabled={isAdding}
+          value={todoTitle}
+          onChange={e => setTodoTitle(e.target.value)}
           autoFocus
+          disabled={isLoading}
         />
       </form>
     </header>
